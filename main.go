@@ -1,3 +1,4 @@
+//deployed as cron job on AWS Lambda
 package main
 
 import (
@@ -7,18 +8,21 @@ import (
   "os"
   "strings"
   "time"
-  "github.com/joho/godotenv"
+  "github.com/aws/aws-lambda-go/lambda"
+//   "github.com/joho/godotenv"
   "github.com/twilio/twilio-go"
   twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
 func main() {
-	loadConfig("./.env")
+	// loadConfig("./.env")
+	// Handler()
+	lambda.Start(Handler)
+}
 
-	//list of numbers to send reminder to
-	sender := os.Getenv("SENDER")
+func Handler() {
 	recipients := strings.Split(os.Getenv("RECIPIENTS"), ",")
-
+	sender := os.Getenv("SENDER")
 	accountSid := os.Getenv("ACCOUNT_SID")
 	authToken := os.Getenv("AUTH_TOKEN")
 	
@@ -26,18 +30,10 @@ func main() {
 		Username: accountSid,
 		Password: authToken,
 	})
-
-	// c := make(chan bool)
-	// go messageTimer(c)
-
-	for _, recipient := range recipients {   
-		sendMessage(client, sender, recipient, createMessage())
-	}
-}
-
-func messageTimer(c chan bool) {
-	for true {
-		time.Sleep(5 * time.Second)
+	
+	for _, recipient := range recipients {
+		message := buildMessage()
+			sendMessage(client, sender, recipient, message)
 	}
 }
 
@@ -56,7 +52,7 @@ func sendMessage(client *twilio.RestClient, sender, recipient, message string) {
 	}
 }
 
-func createMessage() string {
+func buildMessage() string {
 	location, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		panic(err)
@@ -64,18 +60,26 @@ func createMessage() string {
 	timeElapsed := time.Since(time.Date(2023, 1, 1, 0, 0, 0, 0, location))
 	num_burpees := int(math.Ceil(timeElapsed.Hours() / 24))
 
-	total_done := 0
-	for i := 1; i <= num_burpees; i++ {
-		total_done += i
+	var msg string
+
+	if num_burpees == 100 {
+		msg = fmt.Sprintf("Today is day 100!\nYou have done 5050 burpees since Jan 1\n%s\n[512/5050]", strings.Repeat("🦍", 511))
+	} else {
+		total_done := 0
+		for i := 1; i <= num_burpees; i++ {
+			total_done += i
+		}
+
+		msg =  fmt.Sprintf("We'll do %v burpees today\nMaking it %v burpees since Jan 1\nOnly %v left!\n", 
+			num_burpees, total_done, 5050-total_done)
 	}
 
-	return fmt.Sprintf("Today is day %v :)\nToday will be %v burpees\nOnly %v burpees left!\n", 
-		num_burpees, total_done, 5050-total_done)
+	return msg;
 }
 
-func loadConfig(path string) {
-	err := godotenv.Load(path)
-	if (err != nil) {
-		panic(err)
-	}
-}
+// func loadConfig(path string) {
+	// err := godotenv.Load(path)
+	// if (err != nil) {
+		// panic(err)
+	// }
+// }
